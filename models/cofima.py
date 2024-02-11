@@ -7,14 +7,9 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from models.base import BaseLearner
 from utils.inc_net import FinetuneIncrementalNet
-from torchvision import transforms
 from torch.distributions.multivariate_normal import MultivariateNormal
-import random
-from utils.toolkit import tensor2numpy, accuracy
 import copy
 import os
-from sklearn.neighbors import KernelDensity
-from sklearn.mixture import GaussianMixture
 
 epochs = 20
 lrate = 0.01
@@ -57,6 +52,9 @@ def interpolate_weights(theta_0, theta_1, alpha, fisher=False, fisher_mat=None):
             for key in theta_0.keys()
         }
 
+        # Weighted average of the weights using Fisher coeff, and normalize
+        # new_theta = ((1 - alpha) * F0 *theta0 + alpha * F1 *theta1) / ((1 - alpha) * F0 + alpha * F1)
+
         theta = {
             key: ((1 - alpha) * F_theta0[key] + alpha * F_theta1[key]) /
                  ((1 - alpha) * fisher_mat[0][key] + alpha * fisher_mat[1][key])
@@ -75,7 +73,9 @@ class CoFiMA(BaseLearner):
     def __init__(self, args):
         super().__init__(args)
         self.args = args
+
         self._network = FinetuneIncrementalNet(args['convnet_type'], pretrained=True, args=args)
+
         self.log_path = "logs/{}/{}/{}_{}".format(args['exp_grp'], args['experiment_name'],
                                                   args['model_name'], args['model_postfix'])
         os.makedirs(self.log_path, exist_ok=True)
@@ -175,15 +175,15 @@ class CoFiMA(BaseLearner):
 
             if self.args["fisher_weighting"]:
                 theta = interpolate_weights(theta_0, theta_1,
-                                                alpha=self.args["wt_alpha"],
-                                                fisher=True, fisher_mat=self.fisher_mat[-2:])
+                                            alpha=self.args["wt_alpha"],
+                                            fisher=True, fisher_mat=self.fisher_mat[-2:])
             else:
                 theta = interpolate_weights(theta_0, theta_1, alpha=self.args["wt_alpha"])
 
             # update the model according to the new weights
             self._network.load_state_dict(theta, strict=True)
 
-        self._compute_class_vectors(data_manager)
+        self._compute_class_mean(data_manager, check_diff=False, oracle=False)
 
         if self._cur_task > 0 and ca_epochs > 0:
             self._stage2_compact_classifier(task_size)
@@ -239,10 +239,12 @@ class CoFiMA(BaseLearner):
                 test_acc = self._compute_accuracy(self._network, test_loader)
                 info = 'Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.3f}, Test_accy {:.3f}'.format(
                     self._cur_task, epoch, epochs, losses / len(train_loader), train_acc, test_acc)
+                wandb.log({'Train acc': train_acc, 'Test acc': test_acc})
             else:
                 info = 'Task {}, Epoch {}/{} => Loss {:.3f}'.format(
                     self._cur_task, epoch, epochs, losses / len(train_loader))
             logging.info(info)
+            wandb.log({'Train loss': losses / len(train_loader)})
 
     def _stage1_training(self, train_loader, test_loader):
         '''
@@ -312,8 +314,8 @@ class CoFiMA(BaseLearner):
                 sampled_data.append(sampled_data_single)
                 sampled_label.extend([c_id] * num_sampled_pcls)
 
-            sampled_data = torch.cat(sampled_data, dim=0).float().to(self._device)
-            sampled_label = torch.tensor(sampled_label).long().to(self._device)
+                sampled_data = torch.cat(sampled_data, dim=0).float().to(self._device)
+                sampled_label = torch.tensor(sampled_label).long().to(self._device)
 
             inputs = sampled_data
             targets = sampled_label
@@ -357,3 +359,5 @@ class CoFiMA(BaseLearner):
             info = 'CA Task {} => Loss {:.3f}, Test_accy {:.3f}'.format(
                 self._cur_task, losses / self._total_classes, test_acc)
             logging.info(info)
+            wandb.log({'CA Task': losses / self._total_classes})
+            wandb.log({'CA Acc': test_acc})
