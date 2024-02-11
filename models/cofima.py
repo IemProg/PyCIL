@@ -76,8 +76,7 @@ class CoFiMA(BaseLearner):
 
         self._network = FinetuneIncrementalNet(args['convnet_type'], pretrained=True, args=args)
 
-        self.log_path = "logs/{}/{}/{}_{}".format(args['exp_grp'], args['experiment_name'],
-                                                  args['model_name'], args['model_postfix'])
+        self.log_path = "logs/{}_{}".format(args['model_name'], args['model_postfix'])
         os.makedirs(self.log_path, exist_ok=True)
         self.model_prefix = args['prefix']
         if 'epochs' in args.keys():
@@ -239,12 +238,10 @@ class CoFiMA(BaseLearner):
                 test_acc = self._compute_accuracy(self._network, test_loader)
                 info = 'Task {}, Epoch {}/{} => Loss {:.3f}, Train_accy {:.3f}, Test_accy {:.3f}'.format(
                     self._cur_task, epoch, epochs, losses / len(train_loader), train_acc, test_acc)
-                wandb.log({'Train acc': train_acc, 'Test acc': test_acc})
             else:
                 info = 'Task {}, Epoch {}/{} => Loss {:.3f}'.format(
                     self._cur_task, epoch, epochs, losses / len(train_loader))
             logging.info(info)
-            wandb.log({'Train loss': losses / len(train_loader)})
 
     def _stage1_training(self, train_loader, test_loader):
         '''
@@ -359,5 +356,3 @@ class CoFiMA(BaseLearner):
             info = 'CA Task {} => Loss {:.3f}, Test_accy {:.3f}'.format(
                 self._cur_task, losses / self._total_classes, test_acc)
             logging.info(info)
-            wandb.log({'CA Task': losses / self._total_classes})
-            wandb.log({'CA Acc': test_acc})

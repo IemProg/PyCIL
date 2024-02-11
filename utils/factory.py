@@ -63,5 +63,8 @@ def get_model(model_name, args):
     elif name == "simplecil":
         from models.simplecil import SimpleCIL
         return SimpleCIL(args)
+    elif name == "cofima":
+        from models.cofima import CoFiMA
+        return CoFiMA(args)
     else:
         assert 0

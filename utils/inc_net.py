@@ -128,7 +128,7 @@ class BaseNet(nn.Module):
 
 class FinetuneIncrementalNet(BaseNet):
     def __init__(self, convnet_type, pretrained, fc_with_ln=False, args=None):
-        super().__init__(convnet_type, pretrained, args)
+        super().__init__(args, pretrained)
         self.old_fc = None
         self.fc_with_ln = fc_with_ln
 

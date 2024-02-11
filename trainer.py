@@ -13,8 +13,9 @@ def train(args):
     seed_list = copy.deepcopy(args["seed"])
     device = copy.deepcopy(args["device"])
 
-    for seed in seed_list:
+    for run_id, seed in enumerate(seed_list):
         args["seed"] = seed
+        args["run_id"] = run_id
         args["device"] = device
         _train(args)
 
